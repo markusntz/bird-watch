@@ -51,10 +51,10 @@ labels = []
 
 
 # preprocessing the images
-for img_path in glob.glob('data/*/*.jpeg'):
+for img_path in glob.glob('data/*/*.jpg'):
     # construct data
     im = Image.open(img_path)
-    im = im.resize((28, 28), Image.ANTIALIAS)
+    im = im.resize((28, 28))
     im_array = img_to_array(im)
     data.append(im_array)
 
@@ -69,10 +69,16 @@ for img_path in glob.glob('data/*/*.jpeg'):
     labels.append(l)
 
 
-# scaling to 0-1
-data = np.array(data, dtype="float") / 255.0
-labels = np.array(labels) 
+dim_correct = [data[x].shape == (28, 28, 3) for x in range(0, len(data))]
+data_sub = [i for (i, v) in zip(data, dim_correct) if v is True]
+labels_sub = [i for (i, v) in zip(labels, dim_correct) if v is True]
 
+# scaling to 0-1
+data = np.array(data_sub, dtype='float') / 255.0
+labels = np.array(labels_sub) 
+
+
+#%%
 X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=122)
 
 y_train = to_categorical(y_train, num_classes=2)
@@ -80,26 +86,24 @@ y_test = to_categorical(y_test, num_classes=2)
 
 
 # some augmentation
-aug = ImageDataGenerator(rotation_range=30, width_shift_range=0.1,
-	height_shift_range=0.1, shear_range=0.2, zoom_range=0.2,
-	horizontal_flip=True, fill_mode="nearest")
+datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    horizontal_flip=True, 
+    fill_mode="nearest")
 
 
-# # modelling
-epochs = 25
+# modelling
+epochs = 80
 learning_rate = .001
 batch_size = 32
 
 model = LeNet.build_model(width=28, height=28, depth=3)
-
 optimizer = Adam(lr=learning_rate, decay=learning_rate/epochs)
-
 model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-model.fit(X_train, y_train, epochs=25, batch_size=32)
-
-# hist = model.fit_generator(aug.flow(X_train, y_train, batch_size=batch_size), 
-# validation_data=(X_test, y_test), steps_per_epoch=np.floor(len(X_train)/batch_size), 
-# epochs=epochs, verbose=1)
+datagen.fit(X_train)
+H = model.fit_generator(datagen.flow(X_train, y_train, batch_size=batch_size), steps_per_epoch=len(X_train)/batch_size, epochs=epochs, verbose=2)
 
 model.save("bird_or_not.model")
